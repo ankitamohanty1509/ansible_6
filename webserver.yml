@@ -1,0 +1,60 @@
+- name: Setup Web Server Based on OS Type
+  hosts: webservers
+  become: yes
+  gather_facts: yes
+
+  vars:
+    web_package_map:
+      Debian: apache2
+      RedHat: httpd
+
+    web_service_map:
+      Debian: apache2
+      RedHat: httpd
+
+  tasks:
+    - name: Set the correct package name
+      set_fact:
+        web_package: "{{ web_package_map[ansible_os_family] }}"
+        web_service: "{{ web_service_map[ansible_os_family] }}"
+
+    - name: Install web server package
+      package:
+        name: "{{ web_package }}"
+        state: present
+
+    - name: Get installed version of the web server
+      command: "{{ web_package }} -v"
+      register: web_version
+      ignore_errors: yes
+
+    - name: Display installed version
+      debug:
+        var: web_version.stdout
+
+    - name: Ensure web root directory exists
+      file:
+        path: /var/www/html
+        state: directory
+        mode: '0755'
+
+    - name: Copy website files
+      copy:
+        src: website_content/
+        dest: /var/www/html/
+        mode: '0644'
+        owner: root
+        group: root
+      notify: Restart Web Server
+
+    - name: Ensure web server is started and enabled
+      service:
+        name: "{{ web_service }}"
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart Web Server
+      service:
+        name: "{{ web_service }}"
+        state: restarted
